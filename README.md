@@ -30,7 +30,9 @@ The **runtime only** — it does not install the simulator.
 - `sortedcontainers`, `redis`, `numpy`, with resolved versions recorded to
   `/local/testbed/sim-python-freeze.txt`
 - **Redis** on `ctl1` only, configured through a drop-in (never a `sed`
-  against generated config)
+  against generated config), bound to **loopback plus this node's own
+  `10.10.1.x` address** — never `0.0.0.0`, which on a CloudLab node also
+  covers the publicly routable control interface
 - a raised **file-descriptor limit**, for both login shells and systemd units
 - a data filesystem at **`/mnt/simdata`** on the node's largest spare disk
 - `chrony`, so timestamps across machines correlate

@@ -121,6 +121,42 @@ else
     bad S08-quorum "MISSING: nothing registered"
 fi
 
+# S09 -----------------------------------------------------------------------
+# A CloudLab node's control interface is PUBLICLY ROUTABLE. Redis must be
+# bound to loopback and the experiment LAN and nothing else -- an open Redis
+# on a public IP is scanned for continuously, and the cost lands on the
+# account and the address that rules T1-T5 exist to protect. Checked rather
+# than trusted, because this is one line in a config file away from being
+# wrong again.
+if command -v ss >/dev/null 2>&1; then
+    listens="$(ss -ltnH 2>/dev/null | awk '{print $4}' | grep ":$REDIS_PORT\$" || true)"
+    if [ -z "$listens" ]; then
+        if [ -f /etc/redis/redis-simulator.conf ]; then
+            bad S09-redis-exposure "MISSING: redis is configured here but nothing listens on $REDIS_PORT"
+        else
+            ok S09-redis-exposure "no redis on this node (expected on a worker)"
+        fi
+    else
+        publicly=""
+        while read -r l; do
+            [ -z "$l" ] && continue
+            addr="${l%:*}"
+            case "$addr" in
+                127.0.0.1|\[::1\]|10.10.1.*) ;;
+                0.0.0.0|\*|\[::\]) publicly="$publicly $l (ALL interfaces)" ;;
+                *) publicly="$publicly $l" ;;
+            esac
+        done <<< "$listens"
+        if [ -z "$publicly" ]; then
+            ok S09-redis-exposure "redis listens only on loopback/experiment LAN"
+        else
+            bad S09-redis-exposure "WRONG: redis is reachable on$publicly -- that includes the PUBLIC control network. Fix 'bind' in /etc/redis/redis-simulator.conf and restart redis-server."
+        fi
+    fi
+else
+    soft S09-redis-exposure "MISSING: no ss(8); could not check which interfaces redis listens on"
+fi
+
 echo
 echo "  pass=$pass warn=$warn fail=$failed"
 [ "$failed" -eq 0 ] || echo "  a FAIL above is the thing to fix before syncing the simulator."

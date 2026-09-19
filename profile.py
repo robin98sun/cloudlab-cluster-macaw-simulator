@@ -285,9 +285,15 @@ ctl = make_node("ctl1", "ctl", cfg["hw_type_ctl"] or cfg["hw_type"],
                    ",".join(str(_j) for _j in wk_slots) or "none"))
 attach(ctl, "10.10.1.10")
 
+# Workers are told the machine count too. They need it to know whether to
+# wait for an experiment-LAN address (it is load-bearing above one machine)
+# and so verify-sim.sh can check the registration quorum from any node, not
+# only from ctl1.
 for _j in wk_slots:
     hw = slot_types[_j] or cfg["hw_type_wk"] or cfg["hw_type"]
-    n = make_node("wk%d" % _j, "wk", hw)
+    n = make_node("wk%d" % _j, "wk", hw,
+                  " --sim-hosts %d --sim-nodes %d"
+                  % (1 + len(wk_slots), cfg["sim_nodes"]))
     attach(n, "10.10.1.%d" % (20 + _j))
 
 pc.printRequestRSpec(request)

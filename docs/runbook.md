@@ -79,6 +79,7 @@ bash /local/repository/cloudlab/verify-sim.sh
 | S06 | this node registered under its own `$HOSTNAME` | `cloudlab/register-sim-node.sh` |
 | S07 | chrony tracking | multi-machine timestamps will not correlate |
 | S08 | all allocated machines registered | wait, or register the stragglers — **do not** generate the config yet |
+| S09 | Redis listens **only** on loopback + `10.10.1.x` | a public-interface listener is a live exposure — fix `bind` in `/etc/redis/redis-simulator.conf` and restart |
 
 Every check says **MISSING** (the thing is not there) or **WRONG** (it is
 there and it is not right). They are different problems with different fixes.
@@ -185,3 +186,11 @@ first, then take one transfer from `ctl1` to the laptop.
 - **Absent is not broken.** Every check here distinguishes the two. Three
   separate checks in one week reported a verdict about the code when the
   truth was a missing input.
+- **A CloudLab node's control interface is publicly routable.** `ctl1` was
+  `128.105.145.221` on a recent allocation. Anything bound to `0.0.0.0` is
+  published to the internet, and open Redis is scanned for continuously. The
+  bootstrap binds Redis to loopback plus **this node's own** `10.10.1.x`
+  address and nothing else; **S09** checks it rather than trusting it. Whether
+  the site firewall happens to block 6379 is not the standard to design to —
+  the cost of binding explicitly is zero, and the cost of being wrong lands on
+  the account and the IP that T1–T5 exist to protect.

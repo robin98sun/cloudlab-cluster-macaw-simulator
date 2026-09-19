@@ -209,6 +209,42 @@ else
     note_fail "PyPy install"
 fi
 
+# ------------------------------------------------------- experiment LAN ---
+# The EXPERIMENT-LAN address only. A CloudLab node has two interfaces and the
+# other one -- the control network we ssh in on -- is PUBLICLY ROUTABLE. Any
+# service that binds without naming an interface binds that one too.
+lan_ip() {
+    ip -4 -o addr show 2>/dev/null | awk '$4 ~ /^10\.10\.1\./ {split($4,a,"/"); print a[1]; exit}'
+}
+
+# With more than one machine the LAN address is load-bearing: Redis binds to
+# it and the workers reach ctl1 over it. Interfaces are not necessarily up
+# when this service runs, so wait -- bounded, and say which it was.
+wait_for_lan_ip() {
+    local waited=0 found
+    while [ "$waited" -lt 300 ]; do
+        found="$(lan_ip)"
+        [ -n "$found" ] && { echo "$found"; return 0; }
+        sleep 5; waited=$((waited + 5))
+    done
+    return 1
+}
+
+LAN_IP="$(lan_ip)"
+if [ -z "$LAN_IP" ] && [ "$SIM_HOSTS" -gt 1 ]; then
+    echo "experiment-LAN address not up yet; waiting"
+    LAN_IP="$(wait_for_lan_ip || true)"
+fi
+if [ -n "$LAN_IP" ]; then
+    echo "experiment-LAN address: $LAN_IP"
+elif [ "$SIM_HOSTS" -gt 1 ]; then
+    echo "MISSING: no 10.10.1.x address on this node after 300s, but the"
+    echo "         profile allocated $SIM_HOSTS machines. Check the manifest"
+    echo "         for this node's interface."
+else
+    echo "no experiment LAN, as expected for a single-machine testbed"
+fi
+
 # ---------------------------------------------------------------- redis ---
 # ctl1 only. Every worker, on this node and on the others, talks to it.
 if [ "$ROLE" = "ctl" ]; then
@@ -217,10 +253,34 @@ if [ "$ROLE" = "ctl" ]; then
     # text silently matches nothing when the package's defaults change, and
     # that failure mode has cost this project a multi-day hunt before.
     $SUDO mkdir -p /etc/redis/redis.conf.d 2>/dev/null || true
+    # ★ NEVER 0.0.0.0. A CloudLab node has two interfaces, and the control
+    #   network -- the one we ssh in on -- is PUBLICLY ROUTABLE (ctl1 was
+    #   128.105.145.221 on the last allocation). 0.0.0.0 would publish this
+    #   Redis, with a password that lives in a git repository, to the open
+    #   internet, where open Redis is scanned for continuously. Whether the
+    #   site firewall happens to block 6379 is not the standard to design to:
+    #   the cost of binding explicitly is zero and the cost of being wrong
+    #   lands on the account and the IP that rules T1-T5 exist to protect.
+    #
+    #   Loopback always (everything on ctl1 talks to it that way), plus THIS
+    #   node's experiment-LAN address when there is one. No LAN address means
+    #   a single-machine testbed, where loopback is the whole story. If the
+    #   LAN address is genuinely missing on a multi-machine allocation we bind
+    #   loopback alone and the workers fail loudly -- failing closed, never
+    #   open.
+    redis_binds="127.0.0.1"
+    if [ -n "$LAN_IP" ]; then
+        redis_binds="127.0.0.1 $LAN_IP"
+    elif [ "$SIM_HOSTS" -gt 1 ]; then
+        echo "MISSING: binding Redis to loopback only -- this node has no"
+        echo "         experiment-LAN address and the other machines will not"
+        echo "         reach it. Fix the interface, then re-run this script."
+    fi
+    # protected-mode is left at its default (on). It is inert once a bind list
+    # and a password are set, and turning it off buys nothing here.
     $SUDO tee /etc/redis/redis-simulator.conf >/dev/null <<CONF
 # simulator testbed overrides, included from redis.conf
-bind 0.0.0.0
-protected-mode no
+bind ${redis_binds}
 port ${REDIS_PORT}
 requirepass ${REDIS_PASS}
 databases 16
@@ -246,17 +306,17 @@ fi
 # $HOSTNAME is captured exactly as bash reports it, because mod_op.sh indexes
 # arr_host_role by that same value. A short name here and an FQDN there is
 # precisely how a config silently matches no host.
-lan_ip() {
-    ip -4 -o addr show 2>/dev/null | awk '$4 ~ /^10\.10\.1\./ {split($4,a,"/"); print a[1]; exit}'
-}
 register() {
     local host cpus mem_kb ip redis_target
     host="$(hostname)"
     cpus="$(nproc 2>/dev/null || echo 1)"
     mem_kb="$(awk '/MemTotal/{print $2}' /proc/meminfo 2>/dev/null || echo 0)"
-    ip="$(lan_ip)"
-    # One machine means no experiment LAN, so ctl1 talks to its own loopback.
-    if [ "$SIM_HOSTS" -le 1 ]; then redis_target="127.0.0.1"; else redis_target="$CTL_LAN_IP"; fi
+    ip="$LAN_IP"
+    # By ROLE, never by host count. Redis lives on ctl1: ctl1 reaches it on
+    # loopback, every worker reaches it across the experiment LAN. Deciding
+    # this from SIM_HOSTS instead would send a worker to its own loopback the
+    # moment that count was not passed down to it.
+    if [ "$ROLE" = "ctl" ]; then redis_target="127.0.0.1"; else redis_target="$CTL_LAN_IP"; fi
 
     $SUDO tee "$STATE/sim-node-facts" >/dev/null <<FACTS
 hostname=$host
@@ -295,7 +355,7 @@ $SUDO tee "$STATE/sim-env.sh" >/dev/null <<ENV
 # Source this before driving the simulator on this node.
 export SIM_PYTHON=${PYPY_BIN}
 export SIM_CONTROL_PYTHON=python3
-export REDIS_HOST=$( [ "$SIM_HOSTS" -le 1 ] && echo 127.0.0.1 || echo "$CTL_LAN_IP" )
+export REDIS_HOST=$( [ "$ROLE" = "ctl" ] && echo 127.0.0.1 || echo "$CTL_LAN_IP" )
 export REDIS_PORT=${REDIS_PORT}
 export REDIS_DB=${REDIS_DB}
 export REDIS_PASS=${REDIS_PASS}

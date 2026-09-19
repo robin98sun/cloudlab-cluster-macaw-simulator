@@ -1,0 +1,6 @@
+manifest.xml
+*.pyc
+__pycache__/
+.DS_Store
+topology.json
+mod_op.config

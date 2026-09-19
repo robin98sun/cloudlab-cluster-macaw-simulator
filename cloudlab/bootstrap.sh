@@ -191,7 +191,18 @@ install_pypy() {
     return 0
 }
 if install_pypy; then
-    "$PYPY_BIN" -m ensurepip --default-pip >/dev/null 2>&1 || true
+    # ★ ensurepip NEEDS $SUDO, like every other write into $PYPY_PREFIX.
+    #   The startup service runs as geniuser, not root, and /opt/pypy is
+    #   root-owned -- so an unprivileged ensurepip cannot write the pip it is
+    #   creating. Measured on robin98-317038: it failed, `|| true` swallowed
+    #   it, and the next line reported "No module named pip", which reads as
+    #   a broken PyPy rather than as a permission error one line earlier.
+    if ! $SUDO "$PYPY_BIN" -m ensurepip --default-pip >/dev/null 2>&1; then
+        echo "WARNING: ensurepip failed; trying the bundled pip anyway"
+    fi
+    if ! $SUDO "$PYPY_BIN" -m pip --version >/dev/null 2>&1; then
+        note_fail "pip is absent after ensurepip -- nothing can be installed"
+    fi
     $SUDO "$PYPY_BIN" -m pip install --quiet --upgrade pip >/dev/null 2>&1 || \
         echo "WARNING: pip self-upgrade failed; continuing with the bundled pip"
     # shellcheck disable=SC2086

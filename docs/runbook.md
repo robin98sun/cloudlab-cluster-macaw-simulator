@@ -186,6 +186,16 @@ first, then take one transfer from `ctl1` to the laptop.
 - **Absent is not broken.** Every check here distinguishes the two. Three
   separate checks in one week reported a verdict about the code when the
   truth was a missing input.
+- **The portal parses `profile.py` with PYTHON 2, in a jail.** A single
+  non-ASCII byte fails the whole instantiation before any node is touched:
+  `SyntaxError: Non-ASCII character '\xe2' ... but no encoding declared`,
+  and the line number it reports is off by one from the real file. Three `*`
+  characters used as emphasis markers cost a round-trip here. `profile.py`
+  carries a PEP 263 line as a net, but keep the source ASCII regardless — and
+  note that the reference profile that does boot,
+  `cloudlab-cluster-macaw/profile.py`, is 100% ASCII. Python 2 also rules out
+  f-strings, `print()` as a function with multiple arguments, and true
+  division; test with `python2 -m py_compile profile.py` before pushing.
 - **A CloudLab node's control interface is publicly routable.** `ctl1` was
   `128.105.145.221` on a recent allocation. Anything bound to `0.0.0.0` is
   published to the internet, and open Redis is scanned for continuously. The

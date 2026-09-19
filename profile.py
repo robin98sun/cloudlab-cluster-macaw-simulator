@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+# The CloudLab portal parses this file with PYTHON 2 in a jail, which
+# rejects a non-ASCII byte outright unless this line is present. Keep
+# the source ASCII anyway -- a smart quote pasted into a docstring has
+# already cost one portal round-trip -- and keep this line as the net.
 """Consolidated DC simulator testbed on CloudLab bare metal.
 
 N machines, N >= 1, DELIBERATELY HETEROGENEOUS. The simulator does not care
@@ -13,7 +18,7 @@ degraded one.
     wk<j>   additional worker machines. Each may be a DIFFERENT CloudLab
             hardware type -- see the per-slot fields below.
 
-★ ctl1 is named ctl1 on purpose. Every piece of ssh tooling in these
+*** ctl1 is named ctl1 on purpose. Every piece of ssh tooling in these
   projects assumes the one contactable host is called that, and rule T3
   (/Volumes/devessential/CLAUDE.md) says exactly one host is contacted from
   the laptop and every other node is reached from inside the allocation.
@@ -31,7 +36,7 @@ HETEROGENEITY, two ways, one rule:
   was ever requested, so a host that was already named in a config never
   changes address because another was added later.
 
-★ MIXED INTERFACE SPEEDS BREAK THE LAN. Emulab refuses to build one flat
+*** MIXED INTERFACE SPEEDS BREAK THE LAN. Emulab refuses to build one flat
   LAN across hardware types whose NICs differ (1Gb d710 + 10Gb d430 mapped
   fine and then failed at 'SliverStart: Failed to set up experimental
   networks'). Turn on lan_best_effort to build such a LAN at all. Read that
@@ -48,7 +53,7 @@ setup_sim_environment.sh; this profile mirrors its pinned versions so a
 fresh node is usable before the first sync, and that script can always be
 re-run afterwards.
 
-★ THE DATA FILESYSTEM IS CALLED /mnt/simdata, NOT /mnt/shared-storage.
+*** THE DATA FILESYSTEM IS CALLED /mnt/simdata, NOT /mnt/shared-storage.
   Nothing here is shared between nodes. The name /mnt/shared-storage asserts
   a property that path has never had on CloudLab or AWS -- every node mounts
   its own local disk there -- and it has already cost this project days.

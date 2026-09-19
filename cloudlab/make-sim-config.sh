@@ -31,6 +31,9 @@ SIM_ENV="$STATE/sim-env.sh"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_DB="${REDIS_DB:-5}"
+# Read registrations from the registry db; the emitted mod_op.config still
+# names REDIS_DB, which is the simulator's and is flushed by its clean.
+REGISTRY_DB="${SIM_REGISTRY_DB:-6}"
 REDIS_PASS="${REDIS_PASS:-1qaz2wsx}"
 SIM_NODES="${SIM_NODES:-20}"
 EXPECT="${SIM_HOSTS:-0}"
@@ -49,7 +52,7 @@ while [ $# -gt 0 ]; do
     esac
 done
 
-rcli() { redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REDIS_DB" "$@" 2>/dev/null; }
+rcli() { redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REGISTRY_DB" "$@" 2>/dev/null; }
 
 if ! rcli ping | grep -q PONG; then
     echo "MISSING: no Redis answering at $REDIS_HOST:$REDIS_PORT."
@@ -59,7 +62,7 @@ fi
 
 keys="$(rcli --scan --pattern 'simnodes:*' | sort)"
 if [ -z "$keys" ]; then
-    echo "MISSING: Redis is up but no node has registered."
+    echo "MISSING: Redis is up but no node has registered in db $REGISTRY_DB."
     echo "         Not a bug in this script. On each node:"
     echo "           bash /local/repository/cloudlab/register-sim-node.sh"
     exit 1

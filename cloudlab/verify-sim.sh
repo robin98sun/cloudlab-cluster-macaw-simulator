@@ -18,6 +18,7 @@ SIM_PYTHON="${SIM_PYTHON:-/usr/local/bin/pypy3}"
 REDIS_HOST="${REDIS_HOST:-127.0.0.1}"
 REDIS_PORT="${REDIS_PORT:-6379}"
 REDIS_DB="${REDIS_DB:-5}"
+REGISTRY_DB="${SIM_REGISTRY_DB:-6}"
 REDIS_PASS="${REDIS_PASS:-1qaz2wsx}"
 
 pass=0; warn=0; failed=0
@@ -116,11 +117,11 @@ fi
 # under a different string than bash reports here, its config entry will
 # match no host and it will silently do nothing.
 me="$(hostname)"
-reg="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REDIS_DB" hget "simnodes:$me" cpus 2>/dev/null)"
+reg="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REGISTRY_DB" hget "simnodes:$me" cpus 2>/dev/null)"
 if [ -n "$reg" ]; then
     ok S06-registered "$me registered, cpus=$reg"
 else
-    bad S06-registered "MISSING: no simnodes:$me in Redis. Run cloudlab/register-sim-node.sh here."
+    bad S06-registered "MISSING: no simnodes:$me in Redis db $REGISTRY_DB. Run cloudlab/register-sim-node.sh here."
 fi
 
 # S07 -----------------------------------------------------------------------
@@ -131,7 +132,7 @@ else
 fi
 
 # S08 -----------------------------------------------------------------------
-n="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REDIS_DB" --scan --pattern 'simnodes:*' 2>/dev/null | grep -c . || echo 0)"
+n="$(redis-cli -h "$REDIS_HOST" -p "$REDIS_PORT" -a "$REDIS_PASS" -n "$REGISTRY_DB" --scan --pattern 'simnodes:*' 2>/dev/null | grep -c . || echo 0)"
 want="${SIM_HOSTS:-0}"
 if [ "$want" -gt 0 ] && [ "$n" -ne "$want" ]; then
     bad S08-quorum "MISSING: $n of $want machines registered. Do not generate mod_op.config yet."

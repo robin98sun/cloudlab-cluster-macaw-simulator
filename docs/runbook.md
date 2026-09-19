@@ -114,6 +114,17 @@ also sends it to every other registered node **over the experiment LAN**
 (rule T5). Without `--install` it only writes `/local/testbed/mod_op.config`
 and prints the copy command.
 
+★ **The registry lives in Redis db 6, not db 5.** db 5 is the simulator's,
+and its own `mod_op.sh clean` calls `flushdb()` on it
+(`coordinator/messenger_redis.py:59`) — while the simulator's `CLAUDE.md`
+requires cleaning **twice before every run**. Registering the cluster
+description there meant mandatory housekeeping destroyed it; on
+`robin98-317038` the registrations had to be backed up by hand before the
+first clean. db 6 holds what describes the **testbed** and nothing the
+simulator touches. If you are on an allocation that booted a profile from
+before this change, re-run `register-sim-node.sh` on each node once so the
+facts land in db 6.
+
 Run it **again** whenever the machine set changes. It is keyed on each node's
 own `$HOSTNAME`, which is what `mod_op.sh` indexes `arr_host_role` by — a
 short name in one place and an FQDN in the other is precisely how a config

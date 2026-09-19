@@ -45,6 +45,15 @@ REDIS_DB=5
 # Matches the simulator's own default (mod_op.sh:16). A disposable testbed on
 # an isolated control network; not a pattern for anything internet-facing.
 REDIS_PASS="1qaz2wsx"
+# ★ THE NODE REGISTRY LIVES IN ITS OWN DB, NOT THE SIMULATOR'S.
+#   The simulator's own `mod_op.sh clean` calls flushdb() on its db
+#   (coordinator/messenger_redis.py:59), and CLAUDE.md requires cleaning
+#   TWICE before every run -- so registering the cluster description in db 5
+#   means routine, mandatory housekeeping destroys it. Measured on
+#   robin98-317038: the registrations had to be backed up by hand before the
+#   first clean. db 6 holds what describes the TESTBED; db 5 belongs to the
+#   simulation and may be flushed at will.
+REGISTRY_DB=6
 
 PYPY_PACKAGES="${SIM_PYPY_PACKAGES:-sortedcontainers redis numpy}"
 PYPY_PREFIX=/opt/pypy
@@ -351,9 +360,9 @@ FACTS
     local waited=0
     while [ "$waited" -lt 900 ]; do
         if redis-cli -h "$redis_target" -p "$REDIS_PORT" -a "$REDIS_PASS" \
-             -n "$REDIS_DB" ping 2>/dev/null | grep -q PONG; then
+             -n "$REGISTRY_DB" ping 2>/dev/null | grep -q PONG; then
             redis-cli -h "$redis_target" -p "$REDIS_PORT" -a "$REDIS_PASS" \
-                -n "$REDIS_DB" hset "simnodes:$host" \
+                -n "$REGISTRY_DB" hset "simnodes:$host" \
                 hostname "$host" role "$ROLE" lan_ip "${ip:-none}" \
                 cpus "$cpus" mem_kb "$mem_kb" \
                 registered_at "$(date -Is)" >/dev/null 2>&1 \
@@ -378,6 +387,7 @@ export SIM_CONTROL_PYTHON=python3
 export REDIS_HOST=$( [ "$ROLE" = "ctl" ] && echo 127.0.0.1 || echo "$CTL_LAN_IP" )
 export REDIS_PORT=${REDIS_PORT}
 export REDIS_DB=${REDIS_DB}
+export SIM_REGISTRY_DB=${REGISTRY_DB}
 export REDIS_PASS=${REDIS_PASS}
 export SIM_DATA_DIR=${SIMDATA}
 export SIM_HOSTS=${SIM_HOSTS}

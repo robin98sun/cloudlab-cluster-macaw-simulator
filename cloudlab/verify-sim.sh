@@ -32,10 +32,16 @@ echo
 if [ ! -x "$SIM_PYTHON" ]; then
     bad S01-pypy "MISSING: $SIM_PYTHON is not there. See $STATE/logs/bootstrap.log"
 else
-    v="$("$SIM_PYTHON" --version 2>&1 | head -1)"
+    # PyPy prints TWO lines and the marker is on the SECOND:
+    #   Python 3.10.14 (39dc8d3c85a7, Aug 27 2024, 14:32:27)
+    #   [PyPy 7.3.17 with GCC 10.2.1 20210130 (Red Hat 10.2.1-11)]
+    # head -1 saw only the CPython-shaped first line and this check reported
+    # "exists but is not PyPy" about a perfectly good interpreter on all four
+    # nodes of robin98-317038. Read the whole output.
+    v="$("$SIM_PYTHON" --version 2>&1)"
     case "$v" in
-        *PyPy*) ok S01-pypy "$v" ;;
-        *) bad S01-pypy "WRONG: $SIM_PYTHON exists but is not PyPy: $v" ;;
+        *PyPy*) ok S01-pypy "$(printf '%s' "$v" | tr '\n' ' ' | sed 's/  */ /g')" ;;
+        *) bad S01-pypy "WRONG: $SIM_PYTHON runs but reports no PyPy in: $(printf '%s' "$v" | tr '\n' ' ')" ;;
     esac
 fi
 

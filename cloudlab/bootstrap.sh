@@ -78,9 +78,18 @@ for _ in 1 2 3; do $SUDO apt-get update -qq && break || sleep 5; done
 # Small on purpose: enough for the user-space PyPy tarball and for building
 # any wheel that has no pp310 build. chrony because a multi-machine run
 # correlates timestamps across nodes.
+# ★ THE SIMULATOR USES TWO INTERPRETERS, AND BOTH NEED THE PACKAGES.
+#   SIM_PYTHON (PyPy) runs the hot path -- workers, the event engine.
+#   SIM_CONTROL_PYTHON (system python3) runs the control path: mod_op.sh's
+#   run_master_helper drives ./master.py with it for every message sent to
+#   the master. Provisioning only PyPy got all the way to a formed 20-worker
+#   cluster with the BE trace loaded, and then failed at "fill be tasks"
+#   with ModuleNotFoundError: No module named 'numpy' -- from python3, not
+#   from PyPy, whose numpy was fine. Measured on robin98-317038.
 $SUDO apt-get install -y -qq \
     ca-certificates wget curl bzip2 tar xz-utils \
-    python3 chrony jq rsync \
+    python3 python3-pip python3-numpy python3-redis python3-sortedcontainers \
+    chrony jq rsync \
     build-essential pkg-config libffi-dev \
     redis-tools sysstat >/dev/null || note_fail "apt package install"
 

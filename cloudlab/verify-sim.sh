@@ -60,6 +60,20 @@ else
     bad S02-packages "MISSING: no interpreter to import into (see S01)"
 fi
 
+# S02b ----------------------------------------------------------------------
+# The CONTROL interpreter needs them too -- see the note in bootstrap.sh.
+# Checking only SIM_PYTHON let a node look fully provisioned and then fail
+# several minutes into a run, after the cluster had formed.
+missing=""
+for m in numpy redis sortedcontainers; do
+    python3 -c "import $m" >/dev/null 2>&1 || missing="$missing $m"
+done
+if [ -z "$missing" ]; then
+    ok S02b-control-python "python3 imports numpy, redis, sortedcontainers"
+else
+    bad S02b-control-python "MISSING:${missing} for the CONTROL python3 (SIM_CONTROL_PYTHON). PyPy having them is not enough."
+fi
+
 # S03 -----------------------------------------------------------------------
 # run_with_high_ulimit.sh raises the SOFT limit to the HARD one, so the hard
 # limit is the one that has to be large.

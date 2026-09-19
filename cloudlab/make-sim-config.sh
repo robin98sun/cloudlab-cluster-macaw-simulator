@@ -90,8 +90,18 @@ if [ "$EXPECT" -gt 0 ] && [ "$registered" -ne "$EXPECT" ]; then
     case "$a" in y|Y|yes|YES) ;; *) echo "aborted."; exit 1 ;; esac
 fi
 
-printf '%s' "$facts" | python3 - "$SIM_NODES" "$OUT" "$REDIS_HOST" \
-        "$REDIS_PORT" "$REDIS_PASS" "$REDIS_DB" <<'PY'
+# The program goes in a FILE, and the data goes down the pipe.
+#
+# ★ `printf '%s' "$facts" | python3 - ARGS <<'PY' ... PY` DOES NOT WORK, and
+#   it fails silently. The heredoc and the pipe are the same stream: the
+#   heredoc wins, python reads its SOURCE from stdin, and sys.stdin.read()
+#   then returns "" because the interpreter already consumed it. The result
+#   was "MISSING: no node registered with role=ctl" on a cluster where all
+#   four nodes were registered correctly -- a report about the data when the
+#   fault was in the plumbing. Measured on robin98-317038.
+PY_PROG="$(mktemp "${TMPDIR:-/tmp}/make-sim-config.XXXXXX.py")"
+trap 'rm -f "$PY_PROG"' EXIT
+cat > "$PY_PROG" <<'PY'
 import sys
 
 sim_nodes = int(sys.argv[1]); out = sys.argv[2]
@@ -200,6 +210,8 @@ print("total simulated nodes: %d (must be %d)" % (node_idx, sim_nodes))
 print("redis_host in the config: %s" % redis_target)
 print("written: %s" % out)
 PY
+printf '%s' "$facts" | python3 "$PY_PROG" "$SIM_NODES" "$OUT" "$REDIS_HOST" \
+        "$REDIS_PORT" "$REDIS_PASS" "$REDIS_DB"
 rc=$?
 [ "$rc" -ne 0 ] && { echo "config generation failed"; exit "$rc"; }
 
